@@ -86,8 +86,7 @@ tmp_def = rename_nodes(graph_def, lambda s: "/".join(s.split('_', 1)))
 
 # Picking some internal layer. Note that we use outputs before applying the ReLU nonlinearity
 # to have non-zero gradients for features with negative initial activations.
-layer = 'mixed4d_3x3_bottleneck_pre_relu'
-channel = 139  # picking some feature channel to visualize
+layer = 'head1_bottleneck_pre_relu/conv'
 
 # start with a gray image with a little noise
 img_noise = np.random.uniform(size=(224, 224, 3)) + 100.0
@@ -264,9 +263,11 @@ def render_lapnorm(t_obj, img0=img_noise, visfunc=visstd,
         showarray(visfunc(img))
 
 
-def render_deepdream(t_obj, img0=img_noise,
+def render_deepdream(l, img0=img_noise,
                      iter_n=20, step=1.5, octave_n=10
-                     , octave_scale=1.4):
+                     , octave_scale=1.4, break_after_octave=5):
+    t_obj = T(layer)[:, :, :, l]
+
     t_score = tf.reduce_mean(t_obj)  # defining the optimization objective
     t_grad = tf.gradients(t_score, t_input)[0]  # behold the power of automatic differentiation!
 
@@ -283,6 +284,7 @@ def render_deepdream(t_obj, img0=img_noise,
     # generate details octave by octave
     for octave in range(octave_n):
         print("Octave {}/{}".format(octave, octave_n))
+
         if octave > 0:
             hi = octaves[-octave]
             img = resize(img, hi.shape[:2]) + hi
@@ -292,16 +294,19 @@ def render_deepdream(t_obj, img0=img_noise,
             img += g * (step / (np.abs(g).mean() + 1e-7))
             print('.', end=' ')
 
-        img = convert_to_image(img / 255.0)
-        img.save("output/octave_{}.jpeg".format(octave), "jpeg")
+        if octave >= break_after_octave:
+            img = convert_to_image(img / 255.0)
+            img.save("layers/layer_{}.jpeg".format(l), "jpeg")
+            break
 
         clear_output()
 
 
-img0 = PIL.Image.open('input/5x8_Cream_390.jpg')
+img0 = PIL.Image.open('input/gallery-11.jpg')
 img0 = np.float32(img0)
 
-render_deepdream(T(layer)[:, :, :, 139], img0)
+for i in range(1, 140):
+    render_deepdream(i, img0)
 
 # for layer in layers:
 #    print(str(layer).replace("import/", ""))
